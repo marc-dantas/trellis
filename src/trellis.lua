@@ -1,6 +1,5 @@
 #!/usr/bin/env lua
 
-
 -- Partition kinds definition
 TEXT    = 0
 COMMAND = 1
@@ -17,19 +16,12 @@ end
 
 -- helper function to check if character is part of an identifier
 function is_id(char)
-    return char:match("%w") ~= nil
+    return char:match("%w") ~= nil or char == "_"
 end
 
 -- helper function to check if character is the start of an identifier
 function is_id_start(char)
-    return char:match("%a") ~= nil
-end
-
--- helper to check if word is a keyword
-function is_keyword(word)
-    return (word == "template" or
-            word == "begin"    or
-            word == "block")
+    return char:match("%a") ~= nil or char == "_"
 end
 
 ---- Lexical analysis
@@ -111,6 +103,45 @@ function tokenize(parts)
     return tokens
 end
 
+---- Parser
+
+
+
+-- Syntax variants definition
+
+local CommandKind = {
+    END      = {},
+    BLOCK    = {},
+    TEMPLATE = {},
+    BEGIN    = {}
+}
+
+function parse(tokens)
+    for index, token in pairs(tokens) do
+        if type(token) == "table" then
+            -- in case of a command token
+            local command = token[1]
+            local sub = token[2]
+
+            if command ~= nil then
+                if command == "end" then
+                    tokens[index] = { type = CommandKind.END }
+                elseif command == "template" and sub ~= nil then
+                    tokens[index] = { type = CommandKind.TEMPLATE, template = sub }
+                elseif command == "block" and sub ~= nil then
+                    tokens[index] = { type = CommandKind.BLOCK, block = sub }
+                elseif command == "begin" and sub ~= nil then
+                    tokens[index] = { type = CommandKind.BEGIN, block = sub }
+                else
+                    tokens[index] = nil
+                end
+            else
+                tokens[index] = nil
+            end
+        end
+    end
+end
+
 ---- Main CLI program
 
 function fatal(program, message)
@@ -145,16 +176,23 @@ function main()
 
     local parts = partition(content)
     local tokens = tokenize(parts)
+    parse(tokens)
+    
     for i=1,#tokens do
         local token = tokens[i]
         if type(token) == "table" then
             print("Command: {")
-            for _, i in pairs(token) do
-                print("    \"" .. i .. "\"")
-            end
+                if token.type == CommandKind.END then
+                    print("    end")
+                elseif token.type == CommandKind.TEMPLATE then
+                    print("    template " .. token.template)
+                elseif token.type == CommandKind.BLOCK then
+                    print("    block " .. token.block)
+                elseif token.type == CommandKind.BEGIN then
+                    print("    begin " .. token.block)
+                end
+                
             print("}\n")
-        else
-            print("Plain text: \"" .. token .. "\"\n")
         end
     end
 
