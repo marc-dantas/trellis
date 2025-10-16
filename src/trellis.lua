@@ -105,8 +105,6 @@ end
 
 ---- Parser
 
-
-
 -- Syntax variants definition
 
 local CommandKind = {
@@ -142,6 +140,56 @@ function parse(tokens)
     end
 end
 
+---- Rendering engine
+
+-- rust vibes coming
+local Result = {
+    OK = {},
+    ERR = {}
+}
+
+function render(data)
+    local template = {}
+    for index, item in pairs(data) do
+        if type(item) == "table" and item.type == CommandKind.TEMPLATE then
+            template = read_trellis(item.template .. ".html")
+            if template == nil then return nil end 
+        end
+    end
+
+    local blocks = {}
+    local block = nil
+    
+    for index, item in pairs(data) do
+        if type(item) == "table" then
+            if item.type == CommandKind.BEGIN then
+                block = item.block
+                blocks[item.block] = ""
+            elseif item.type == CommandKind.END then
+                block = nil
+            end
+        elseif type(item) == "string" then
+            if block ~= nil then
+                blocks[block] = blocks[block] .. item
+            end
+        end
+    end
+
+    local rendered = ""
+    for index, item in pairs(template) do
+        if type(item) == "string" then
+            rendered = rendered .. item
+        elseif type(item) == "table" then
+            if item.type == CommandKind.BLOCK then
+                if blocks[item.block] ~= nil then
+                    rendered = rendered .. blocks[item.block]
+                end
+            end
+        end
+    end
+    return rendered
+end
+
 ---- Main CLI program
 
 function fatal(program, message)
@@ -149,53 +197,57 @@ function fatal(program, message)
 end
 
 function usage(program)
-    io.stderr:write("usage: " .. program .. " FILENAME\n")
+    io.stderr:write("usage: " .. program .. " FILENAME OUTPUT\n")
+end
+
+function read_entire_file(filename)
+    local f = io.open(filename, "r")
+    if f == nil then return nil end
+    local content = f:read("*all")
+    if content == nil then return nil end
+    io.close(f)
+    return content
+end
+
+function read_trellis(filename)
+    local content = read_entire_file(filename)
+    if content == nil then return nil end
+    local trellis = tokenize(partition(content))
+    parse(trellis)
+    return trellis
 end
 
 function main()
     print("Trellis")
     local program = arg[0]
     local filename = arg[1]
+    local output = arg[2]
     if filename == nil then
         usage(program)
-        fatal(program, "expected at least 1 positional argument (filename)")
+        fatal(program, "expected at least 2 positional argument (filename and output)")
+        return 1
+    end
+    if output == nil then
+        usage(program)
+        fatal(program, "expected at least 2 positional argument (filename and output)")
         return 1
     end
 
-    local f = io.open(filename, "r")
-    if f == nil then
-        fatal(program, "could not open file `" .. filename .. "`.")
-        return 1
-    end
+    local content = read_entire_file(filename)
 
-    local content = f:read("*all")
-    if content == nil then
+    local trellis = read_trellis(filename)
+    if trellis == nil then
         fatal(program, "could not read file `" .. filename .. "`.")
         return 1
     end
 
-    local parts = partition(content)
-    local tokens = tokenize(parts)
-    parse(tokens)
-    
-    for i=1,#tokens do
-        local token = tokens[i]
-        if type(token) == "table" then
-            print("Command: {")
-                if token.type == CommandKind.END then
-                    print("    end")
-                elseif token.type == CommandKind.TEMPLATE then
-                    print("    template " .. token.template)
-                elseif token.type == CommandKind.BLOCK then
-                    print("    block " .. token.block)
-                elseif token.type == CommandKind.BEGIN then
-                    print("    begin " .. token.block)
-                end
-                
-            print("}\n")
-        end
+    local rendered = render(trellis)
+    if rendered == nil then
+        fatal(program, "could not render `" .. filename .. "`.")
     end
 
+    local out = io.open(output, "w")
+    out:write(rendered)
     return 0
 end
 
