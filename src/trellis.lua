@@ -24,6 +24,16 @@ function is_id_start(char)
     return char:match("%a") ~= nil or char == "_"
 end
 
+---- Error handling
+
+function warn(message, filename, line)
+    io.stderr:write("warning: " .. filename .. ":" .. line .. ": " .. message .."\n")
+end
+
+function err(message, filename, line)
+    io.stderr:write("error: " .. filename .. ":" .. line .. ": " .. message .."\n")
+end
+
 ---- Lexical analysis
 
 -- transform plain text into the separation between normal text and commands for the templating
@@ -31,16 +41,22 @@ function partition(text)
     local parts = {}
     local acc = ""
     local skip = 0 -- how many characters to skip
+    local line = 1
     for i=1,#text do
         local char = idx(text, i)
         local next = idx(text, i)
         if i < #text then next = idx(text, i+1) end
+
+        if char == "\n" then
+            line = line + 1
+        end
+        
         if char .. next == "%{" then
-            table.insert(parts, { type = TEXT, value = acc })
+            table.insert(parts, { type = TEXT, value = acc, line = line })
             skip = 2
             acc = ""
         elseif char .. next == "}%" then
-            table.insert(parts, { type = COMMAND, value = acc })
+            table.insert(parts, { type = COMMAND, value = acc, line = line })
             skip = 2
             acc = ""
         end
@@ -93,11 +109,11 @@ function tokenize(parts)
     for i=1,#parts do
         local part = parts[i]
         if part.type == TEXT then
-            table.insert(tokens, part.value)
+            table.insert(tokens, { value = part.value, line = part.line })
         elseif part.type == COMMAND then
             -- tokenizing the command
             local toks = tokenize_command(part.value)
-            table.insert(tokens, toks)
+            table.insert(tokens, { value = toks, line = part.line })
         end
     end
     return tokens
@@ -114,85 +130,115 @@ local CommandKind = {
     BEGIN    = {}
 }
 
-function parse(tokens)
+function parse(filename, tokens)
+    local data = {}
     for index, token in pairs(tokens) do
-        if type(token) == "table" then
+        local item = nil
+        if type(token.value) == "table" then
             -- in case of a command token
-            local command = token[1]
-            local sub = token[2]
+            local command = token.value[1]
+            local sub = token.value[2]
 
             if command ~= nil then
                 if command == "end" then
-                    tokens[index] = { type = CommandKind.END }
+                    thing = { type = CommandKind.END }
                 elseif command == "template" and sub ~= nil then
-                    tokens[index] = { type = CommandKind.TEMPLATE, template = sub }
+                    thing = { type = CommandKind.TEMPLATE, template = sub }
                 elseif command == "block" and sub ~= nil then
-                    tokens[index] = { type = CommandKind.BLOCK, block = sub }
+                    thing = { type = CommandKind.BLOCK, block = sub }
                 elseif command == "begin" and sub ~= nil then
-                    tokens[index] = { type = CommandKind.BEGIN, block = sub }
+                    thing = { type = CommandKind.BEGIN, block = sub }
                 else
-                    tokens[index] = nil
+                    err("invalid command or command format `" .. command .. "`", filename, token.line)
+                    return nil
                 end
             else
-                tokens[index] = nil
+                err("no command specified", filename, token.line)
+                return nil
             end
+        else
+            thing = token.value
         end
+        
+        table.insert(data, { value = thing, line = token.line })
     end
+    return data
 end
 
 ---- Rendering engine
 
-
-
-function render(data)
+function render(filename, data)
     local template = {}
+    local template_filename = nil
     for index, item in pairs(data) do
-        if type(item) == "table" and item.type == CommandKind.TEMPLATE then
-            local template_name = item.template .. ".html"
+        if type(item.value) == "table" and item.value.type == CommandKind.TEMPLATE then
+            local template_name = item.value.template .. ".html"
             template = read_trellis(template_name)
             if template == nil then
-                return nil, "could not read template file `" .. template_name .. "`."
+                err("could not read template `" .. template_name .. "`", filename, item.line)
+                return nil
             end
+            
+            log("read template `" .. template_name .. "`", filename)
+            template_filename = template_name
         end
     end
+    if template_filename == nil then
+        fatal("extension `" .. filename .. "` has no template to extend from")
+        log("use `%{template <NAME>}%` command to specify one", "help")
+        return nil
+    end
+
+    templates/basic_page/{index.html,template.trellis}
 
     local blocks = {}
     local block = nil
     
     for index, item in pairs(data) do
-        if type(item) == "table" then
-            if item.type == CommandKind.BEGIN then
-                block = item.block
-                blocks[item.block] = ""
-            elseif item.type == CommandKind.END then
+        if type(item.value) == "table" then
+            if item.value.type == CommandKind.BEGIN then
+                block = item.value.block
+                blocks[item.value.block] = ""
+            elseif item.value.type == CommandKind.END then
                 block = nil
             end
-        elseif type(item) == "string" then
+        elseif type(item.value) == "string" then
             if block ~= nil then
-                blocks[block] = blocks[block] .. item
+                blocks[block] = blocks[block] .. item.value
             end
         end
     end
 
     local rendered = ""
     for index, item in pairs(template) do
-        if type(item) == "string" then
-            rendered = rendered .. item
-        elseif type(item) == "table" then
-            if item.type == CommandKind.BLOCK then
-                if blocks[item.block] ~= nil then
-                    rendered = rendered .. blocks[item.block]
+        if type(item.value) == "string" then
+            rendered = rendered .. item.value
+        elseif type(item.value) == "table" then
+            if item.value.type == CommandKind.BLOCK then
+
+                if blocks[item.value.block] == nil then
+                    warn("block `" .. item.value.block .. "` is not used in extension `" .. filename .. "`", template_filename, item.line)
+                    return nil
                 end
+                rendered = rendered .. blocks[item.value.block]
             end
         end
     end
-    return rendered, nil
+    return rendered
 end
 
 ---- Main CLI program
 
-function fatal(program, message)
-    io.stderr:write(program .. ": fatal: " .. message .. "\n")
+function log(message, submessage)
+    io.stderr:write("info: ")
+    if submessage ~= nil then
+        io.stderr:write(submessage .. ": ")
+    end
+    io.stderr:write(message .. "\n")
+end
+
+function fatal(message)
+    io.stderr:write("fatal: " .. message .. "\n")
 end
 
 function usage(program)
@@ -201,9 +247,15 @@ end
 
 function read_entire_file(filename)
     local f = io.open(filename, "r")
-    if f == nil then return nil end
+    if f == nil then
+        fatal("failed to open `" .. filename .. "`")
+        return nil
+    end
     local content = f:read("*all")
-    if content == nil then return nil end
+    if content == nil then
+        fatal("failed to read `" .. filename .. "`")
+        return nil
+    end
     io.close(f)
     return content
 end
@@ -211,43 +263,39 @@ end
 function read_trellis(filename)
     local content = read_entire_file(filename)
     if content == nil then return nil end
-    local trellis = tokenize(partition(content))
-    parse(trellis)
+    local trellis = parse(filename, tokenize(partition(content)))
+    if trellis == nil then return nil end
     return trellis
 end
 
 function main()
     print("Trellis")
+    print("A simple and powerful templating engine\n")
     local program = arg[0]
     local filename = arg[1]
     local output = arg[2]
     if filename == nil then
         usage(program)
-        fatal(program, "expected at least 2 positional argument (filename and output)")
+        fatal("expected at least 2 positional arguments (filename and output)")
         return 1
     end
     if output == nil then
         usage(program)
-        fatal(program, "expected at least 2 positional argument (filename and output)")
+        fatal("expected at least 2 positional arguments (filename and output)")
         return 1
     end
-
-    local content = read_entire_file(filename)
 
     local trellis = read_trellis(filename)
-    if trellis == nil then
-        fatal(program, "could not read file `" .. filename .. "`.")
-        return 1
-    end
+    if trellis == nil then return 1 end
 
-    local rendered, err = render(trellis)
-    if err ~= nil then
-        fatal(program, err)
-        return 1
-    end
+    log("rendering `" .. filename .. "`")
+
+    local rendered = render(filename, trellis)
+    if rendered == nil then return 1 end
 
     local out = io.open(output, "w")
     out:write(rendered)
+    log("rendered `" .. filename .. "` successfully into `" .. output .. "`")
     return 0
 end
 
