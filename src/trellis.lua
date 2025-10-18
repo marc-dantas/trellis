@@ -189,8 +189,6 @@ function render(filename, data)
         return nil
     end
 
-    templates/basic_page/{index.html,template.trellis}
-
     local blocks = {}
     local block = nil
     
