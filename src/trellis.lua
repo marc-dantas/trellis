@@ -142,18 +142,17 @@ end
 
 ---- Rendering engine
 
--- rust vibes coming
-local Result = {
-    OK = {},
-    ERR = {}
-}
+
 
 function render(data)
     local template = {}
     for index, item in pairs(data) do
         if type(item) == "table" and item.type == CommandKind.TEMPLATE then
-            template = read_trellis(item.template .. ".html")
-            if template == nil then return nil end 
+            local template_name = item.template .. ".html"
+            template = read_trellis(template_name)
+            if template == nil then
+                return nil, "could not read template file `" .. template_name .. "`."
+            end
         end
     end
 
@@ -187,7 +186,7 @@ function render(data)
             end
         end
     end
-    return rendered
+    return rendered, nil
 end
 
 ---- Main CLI program
@@ -241,9 +240,10 @@ function main()
         return 1
     end
 
-    local rendered = render(trellis)
-    if rendered == nil then
-        fatal(program, "could not render `" .. filename .. "`.")
+    local rendered, err = render(trellis)
+    if err ~= nil then
+        fatal(program, err)
+        return 1
     end
 
     local out = io.open(output, "w")
