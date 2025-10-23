@@ -138,7 +138,7 @@ You have 2 templates that are nested, `Page.html` and `DocumentationPage.html`.
 </body>
 ```
 
-`Page.html`:
+`DocumentationPage.html`:
 ```html
 %{template Page}%
 %{begin title}%
