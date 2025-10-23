@@ -29,5 +29,9 @@ $ chmod +x src/trellis.lua
 $ ./src/trellis.lua # or lua src/trellis.lua
 ```
 
+### Learning resources
+Read [the manual](./MANUAL.md) in this repository to understand how to use Trellis and
+its capabilities
+
 ## Examples
 For a demonstration of how Trellis works, please see the [examples](./examples) folder.
