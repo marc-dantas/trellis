@@ -167,11 +167,18 @@ end
 
 ---- Rendering engine
 
-function render(filename, data)
+function render(filename, data, is_template)
     local template = {}
     local template_filename = nil
     for index, item in pairs(data) do
         if type(item.value) == "table" and item.value.type == CommandKind.TEMPLATE then
+            if template_filename ~= nil then
+                err("multiple templates in an extension file are forbidden", filename, item.line)
+                log("extension files must extend only from exactly one template")
+                log("please remove this directive")
+                return nil
+            end
+            
             local template_name = item.value.template .. ".html"
             template = read_trellis(template_name)
             if template == nil then
@@ -179,11 +186,22 @@ function render(filename, data)
                 return nil
             end
             
-            log("read template `" .. template_name .. "`", filename)
+            template = render(template_name, template, true)
+            if template == nil then
+                err("could not render template `" .. template_name .. "`", filename, item.line)
+                return nil
+            end
+
+            template = parse(template_name, tokenize(partition(template)))
+            if template == nil then
+                err("could not render template `" .. template_name .. "`", filename, item.line)
+                return nil
+            end
+            
             template_filename = template_name
         end
     end
-    if template_filename == nil then
+    if template_filename == nil and not is_template then
         fatal("extension `" .. filename .. "` has no template to extend from")
         log("use `%{template <NAME>}%` command to specify one", "help")
         return nil
