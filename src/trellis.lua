@@ -180,7 +180,7 @@ function render(filename, data, is_template)
             end
             
             local template_name = item.value.template .. ".html"
-            template = read_trellis(template_name)
+            template = load_trellis_file(template_name)
             if template == nil then
                 err("could not read template `" .. template_name .. "`", filename, item.line)
                 return nil
@@ -209,6 +209,7 @@ function render(filename, data, is_template)
 
     local blocks = {}
     local block = nil
+    local rendered = ""
     
     for index, item in pairs(data) do
         if type(item.value) == "table" then
@@ -217,26 +218,33 @@ function render(filename, data, is_template)
                 blocks[item.value.block] = ""
             elseif item.value.type == CommandKind.END then
                 block = nil
+            elseif item.value.type == CommandKind.BLOCK then
+                local dir = "%{block " .. item.value.block .. "}%"
+                if block ~= nil then
+                    blocks[block] = blocks[block] .. dir
+                else
+                    rendered = rendered .. dir
+                end
             end
         elseif type(item.value) == "string" then
             if block ~= nil then
                 blocks[block] = blocks[block] .. item.value
+            else
+                rendered = rendered .. item.value
             end
         end
     end
 
-    local rendered = ""
     for index, item in pairs(template) do
         if type(item.value) == "string" then
             rendered = rendered .. item.value
         elseif type(item.value) == "table" then
             if item.value.type == CommandKind.BLOCK then
-
                 if blocks[item.value.block] == nil then
                     warn("block `" .. item.value.block .. "` is not used in extension `" .. filename .. "`", template_filename, item.line)
-                    return nil
+                else
+                    rendered = rendered .. blocks[item.value.block]
                 end
-                rendered = rendered .. blocks[item.value.block]
             end
         end
     end
@@ -276,7 +284,7 @@ function read_entire_file(filename)
     return content
 end
 
-function read_trellis(filename)
+function load_trellis_file(filename)
     local content = read_entire_file(filename)
     if content == nil then return nil end
     local trellis = parse(filename, tokenize(partition(content)))
@@ -301,7 +309,7 @@ function main()
         return 1
     end
 
-    local trellis = read_trellis(filename)
+    local trellis = load_trellis_file(filename)
     if trellis == nil then return 1 end
 
     log("rendering `" .. filename .. "`")
