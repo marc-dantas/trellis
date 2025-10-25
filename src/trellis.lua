@@ -2,7 +2,7 @@
 
 -- Partition kinds definition
 TEXT    = 0
-COMMAND = 1
+DIRECTIVE = 1
 
 -- helper to index a character from a string
 function idx(text, index)
@@ -36,7 +36,7 @@ end
 
 ---- Lexical analysis
 
--- transform plain text into the separation between normal text and commands for the templating
+-- transform plain text into the separation between normal text and directives for the templating
 function partition(text)
     local parts = {}
     local acc = ""
@@ -56,7 +56,7 @@ function partition(text)
             skip = 2
             acc = ""
         elseif char .. next == "}%" then
-            table.insert(parts, { type = COMMAND, value = acc, line = line })
+            table.insert(parts, { type = DIRECTIVE, value = acc, line = line })
             skip = 2
             acc = ""
         end
@@ -72,8 +72,8 @@ function partition(text)
     return parts
 end
 
--- tokenize command
-function tokenize_command(text)
+-- tokenize directive
+function tokenize_directive(text)
     local toks = {}
     local i = 1
     local acc = ""
@@ -110,9 +110,9 @@ function tokenize(parts)
         local part = parts[i]
         if part.type == TEXT then
             table.insert(tokens, { value = part.value, line = part.line })
-        elseif part.type == COMMAND then
-            -- tokenizing the command
-            local toks = tokenize_command(part.value)
+        elseif part.type == DIRECTIVE then
+            -- tokenizing the directive
+            local toks = tokenize_directive(part.value)
             table.insert(tokens, { value = toks, line = part.line })
         end
     end
@@ -123,7 +123,7 @@ end
 
 -- Syntax variants definition
 
-local CommandKind = {
+local DirectiveKind = {
     END      = {},
     BLOCK    = {},
     TEMPLATE = {},
@@ -135,25 +135,25 @@ function parse(filename, tokens)
     for index, token in pairs(tokens) do
         local item = nil
         if type(token.value) == "table" then
-            -- in case of a command token
-            local command = token.value[1]
+            -- in case of a directive token
+            local directive = token.value[1]
             local sub = token.value[2]
 
-            if command ~= nil then
-                if command == "end" then
-                    thing = { type = CommandKind.END }
-                elseif command == "template" and sub ~= nil then
-                    thing = { type = CommandKind.TEMPLATE, template = sub }
-                elseif command == "block" and sub ~= nil then
-                    thing = { type = CommandKind.BLOCK, block = sub }
-                elseif command == "begin" and sub ~= nil then
-                    thing = { type = CommandKind.BEGIN, block = sub }
+            if directive ~= nil then
+                if directive == "end" then
+                    thing = { type = DirectiveKind.END }
+                elseif directive == "template" and sub ~= nil then
+                    thing = { type = DirectiveKind.TEMPLATE, template = sub }
+                elseif directive == "block" and sub ~= nil then
+                    thing = { type = DirectiveKind.BLOCK, block = sub }
+                elseif directive == "begin" and sub ~= nil then
+                    thing = { type = DirectiveKind.BEGIN, block = sub }
                 else
-                    err("invalid command or command format `" .. command .. "`", filename, token.line)
+                    err("invalid directive or directive format `" .. directive .. "`", filename, token.line)
                     return nil
                 end
             else
-                err("no command specified", filename, token.line)
+                err("no directive specified", filename, token.line)
                 return nil
             end
         else
@@ -171,7 +171,7 @@ function render(filename, data, is_template)
     local template = {}
     local template_filename = nil
     for index, item in pairs(data) do
-        if type(item.value) == "table" and item.value.type == CommandKind.TEMPLATE then
+        if type(item.value) == "table" and item.value.type == DirectiveKind.TEMPLATE then
             if template_filename ~= nil then
                 err("multiple templates in an extension file are forbidden", filename, item.line)
                 log("extension files must extend only from exactly one template")
@@ -203,7 +203,7 @@ function render(filename, data, is_template)
     end
     if template_filename == nil and not is_template then
         fatal("extension `" .. filename .. "` has no template to extend from")
-        log("use `%{template <NAME>}%` command to specify one", "help")
+        log("use `%{template <NAME>}%` directive to specify one", "help")
         return nil
     end
 
@@ -213,12 +213,12 @@ function render(filename, data, is_template)
     
     for index, item in pairs(data) do
         if type(item.value) == "table" then
-            if item.value.type == CommandKind.BEGIN then
+            if item.value.type == DirectiveKind.BEGIN then
                 block = item.value.block
                 blocks[item.value.block] = ""
-            elseif item.value.type == CommandKind.END then
+            elseif item.value.type == DirectiveKind.END then
                 block = nil
-            elseif item.value.type == CommandKind.BLOCK then
+            elseif item.value.type == DirectiveKind.BLOCK then
                 local dir = "%{block " .. item.value.block .. "}%"
                 if block ~= nil then
                     blocks[block] = blocks[block] .. dir
@@ -239,7 +239,7 @@ function render(filename, data, is_template)
         if type(item.value) == "string" then
             rendered = rendered .. item.value
         elseif type(item.value) == "table" then
-            if item.value.type == CommandKind.BLOCK then
+            if item.value.type == DirectiveKind.BLOCK then
                 if blocks[item.value.block] == nil then
                     warn("block `" .. item.value.block .. "` is not used in extension `" .. filename .. "`", template_filename, item.line)
                 else
