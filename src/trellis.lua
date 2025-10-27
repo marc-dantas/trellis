@@ -266,7 +266,7 @@ function fatal(message)
 end
 
 function usage(program)
-    io.stderr:write("usage: " .. program .. " FILENAME OUTPUT\n")
+    io.stderr:write("usage: " .. program .. " COMMAND [ARGUMENTS]\n")
 end
 
 function read_entire_file(filename)
@@ -292,34 +292,68 @@ function load_trellis_file(filename)
     return trellis
 end
 
+-- Command Line arguments parsing
+
+function parse_once_command(program, arguments)
+    if #arguments < 2 then
+        usage(program)
+        fatal("expected INPUT and OUTPUT as positional arguments for `once` command")
+        return nil
+    end
+    return {
+        input = arguments[1],
+        output = arguments[2]
+    }
+end
+
+function parse_args(program, args)
+    if #args < 1 then
+        usage(program)
+        fatal("expected at least a command to be provided")
+        return nil
+    end
+    command = args[1]
+    if command == "once" then
+        local parsed = parse_once_command(program, {table.unpack(args, 2)})
+        if parsed == nil then return nil end
+        return {
+            command = command,
+            values = parsed
+        }
+    else
+        usage(program)
+        fatal("unknown command `" .. command .. "`")
+        log("use `help` command to see available commands")
+        return nil
+    end
+end
+
 function main()
+    local program = arg[0]
+
+    local args = parse_args(program, {table.unpack(arg, 1)})
+    if args == nil then
+        fatal("failed to parse command line arguments")
+        return 1
+    end
+    
     print("Trellis")
     print("A simple and powerful templating engine\n")
-    local program = arg[0]
-    local filename = arg[1]
-    local output = arg[2]
-    if filename == nil then
-        usage(program)
-        fatal("expected at least 2 positional arguments (filename and output)")
-        return 1
+
+    if args.command == "once" then
+        local input = args.values.input
+        local output = args.values.output
+
+        local trellis = load_trellis_file(input)
+        if trellis == nil then return 1 end
+        log("rendering `" .. input .. "`")
+        local rendered = render(input, trellis)
+        if rendered == nil then return 1 end
+        local out = io.open(output, "w")
+        out:write(rendered)
+        log("rendered `" .. input .. "` successfully into `" .. output .. "`")
     end
-    if output == nil then
-        usage(program)
-        fatal("expected at least 2 positional arguments (filename and output)")
-        return 1
-    end
-
-    local trellis = load_trellis_file(filename)
-    if trellis == nil then return 1 end
-
-    log("rendering `" .. filename .. "`")
-
-    local rendered = render(filename, trellis)
-    if rendered == nil then return 1 end
-
-    local out = io.open(output, "w")
-    out:write(rendered)
-    log("rendered `" .. filename .. "` successfully into `" .. output .. "`")
+    
     return 0
 end
 
