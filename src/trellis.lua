@@ -294,10 +294,20 @@ end
 
 -- Command Line arguments parsing
 
-function parse_once_command(program, arguments)
+function help(program)
+    io.stderr:write("help:\n")
+    io.stderr:write("  available commands:\n")
+    io.stderr:write("    help\n\tprint this help message and exit\n")
+    io.stderr:write("\tusage: " .. program .. " help\n")
+    io.stderr:write("    single\n\trender a single extension file into a specified output\n")
+    io.stderr:write("\tusage: " .. program .. " single INPUT OUTPUT\n")
+    io.stderr:write("\n")
+end
+
+function parse_single_command(program, arguments)
     if #arguments < 2 then
         usage(program)
-        fatal("expected INPUT and OUTPUT as positional arguments for `once` command")
+        fatal("expected INPUT and OUTPUT as positional arguments for `single` command")
         return nil
     end
     return {
@@ -310,15 +320,21 @@ function parse_args(program, args)
     if #args < 1 then
         usage(program)
         fatal("expected at least a command to be provided")
+        log("use `help` command to see available commands")
         return nil
     end
     command = args[1]
-    if command == "once" then
-        local parsed = parse_once_command(program, {table.unpack(args, 2)})
+    if command == "single" then
+        local parsed = parse_single_command(program, {table.unpack(args, 2)})
         if parsed == nil then return nil end
         return {
             command = command,
             values = parsed
+        }
+    elseif command == "help" then
+        return {
+            command = command,
+            values = {}
         }
     else
         usage(program)
@@ -340,7 +356,7 @@ function main()
     print("Trellis")
     print("A simple and powerful templating engine\n")
 
-    if args.command == "once" then
+    if args.command == "single" then
         local input = args.values.input
         local output = args.values.output
 
@@ -352,6 +368,10 @@ function main()
         local out = io.open(output, "w")
         out:write(rendered)
         log("rendered `" .. input .. "` successfully into `" .. output .. "`")
+    elseif args.command == "help" then
+        usage(program)
+        help(program)
+        return 0
     end
     
     return 0
