@@ -57,9 +57,9 @@ Trellis consists of very simple directives.
 - `begin <BLOCK>`
     Begins the definition of a block with name `<BLOCK>`. All text past this is part
     of the defining block's content until an `end` directive is found.
-- `template <NAME>`
+- `template '<FILENAME>'`
     Sets the template to be extended from of the current file to
-    the template with name `<NAME>`
+    the template with filename `<FILENAME>`
 - `block <NAME>`
     Declares a block position named `<NAME>` inside the file to be
     filled with content later.
@@ -101,7 +101,7 @@ A template file `page.md` contains the following text:
 
 By creating the following `my_page.md` extension file:
 ```md
-%{template page}%
+%{template 'page.md'}%
 
 %{begin title}% This is my page %{end}%
 %{begin description}% Description of my page %{end}%
@@ -140,7 +140,7 @@ You have 2 templates that are nested, `Page.html` and `DocumentationPage.html`.
 
 `DocumentationPage.html`:
 ```html
-%{template Page}%
+%{template 'Page.html'}%
 %{begin title}%
    Documentation | %{block title}%
 %{end}%
@@ -154,7 +154,7 @@ You have 2 templates that are nested, `Page.html` and `DocumentationPage.html`.
 
 With an extension file like this:
 ```html
-%{template DocumentationPage}%
+%{template 'DocumentationPage.html'}%
 %{begin title}%Fizz Buzz%{end}%
 %{begin body}%
 lorem ipsum dolor
