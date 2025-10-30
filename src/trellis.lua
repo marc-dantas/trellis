@@ -1,7 +1,7 @@
 #!/usr/bin/env lua
 
 -- Partition kinds definition
-TEXT    = 0
+TEXT      = 0
 DIRECTIVE = 1
 
 -- helper to index a character from a string
@@ -27,11 +27,11 @@ end
 ---- Error handling
 
 function warn(message, filename, line)
-    io.stderr:write("warning: " .. filename .. ":" .. line .. ": " .. message .."\n")
+    io.stderr:write("warning: " .. filename .. ":" .. line .. ": " .. message .. "\n")
 end
 
 function err(message, filename, line)
-    io.stderr:write("error: " .. filename .. ":" .. line .. ": " .. message .."\n")
+    io.stderr:write("error: " .. filename .. ":" .. line .. ": " .. message .. "\n")
 end
 
 ---- Lexical analysis
@@ -42,15 +42,15 @@ function partition(text)
     local acc = ""
     local skip = 0 -- how many characters to skip
     local line = 1
-    for i=1,#text do
+    for i = 1, #text do
         local char = idx(text, i)
         local next = idx(text, i)
-        if i < #text then next = idx(text, i+1) end
+        if i < #text then next = idx(text, i + 1) end
 
         if char == "\n" then
             line = line + 1
         end
-        
+
         if char .. next == "%{" then
             table.insert(parts, { type = TEXT, value = acc, line = line })
             skip = 2
@@ -93,6 +93,15 @@ function tokenize_directive(text)
                 acc = acc .. c
                 i = i + 1
             end
+        elseif char == "'" then
+            i = i + 1
+            local c = nil
+            while i <= #text do
+                c = idx(text, i)
+                if c == "'" then i = i + 1 break end
+                acc = acc .. c
+                i = i + 1
+            end
         else
             i = i + 1
         end
@@ -106,7 +115,7 @@ end
 -- transform the partitioned text into a sequence of tokens
 function tokenize(parts)
     local tokens = {}
-    for i=1,#parts do
+    for i = 1, #parts do
         local part = parts[i]
         if part.type == TEXT then
             table.insert(tokens, { value = part.value, line = part.line })
@@ -159,7 +168,7 @@ function parse(filename, tokens)
         else
             thing = token.value
         end
-        
+
         table.insert(data, { value = thing, line = token.line })
     end
     return data
@@ -178,14 +187,14 @@ function render(filename, data, is_template)
                 log("please remove this directive")
                 return nil
             end
-            
-            local template_name = item.value.template .. ".html"
+
+            local template_name = item.value.template
             template = load_trellis_file(template_name)
             if template == nil then
                 err("could not read template `" .. template_name .. "`", filename, item.line)
                 return nil
             end
-            
+
             template = render(template_name, template, true)
             if template == nil then
                 err("could not render template `" .. template_name .. "`", filename, item.line)
@@ -197,7 +206,7 @@ function render(filename, data, is_template)
                 err("could not render template `" .. template_name .. "`", filename, item.line)
                 return nil
             end
-            
+
             template_filename = template_name
         end
     end
@@ -206,11 +215,10 @@ function render(filename, data, is_template)
         log("use `%{template <NAME>}%` directive to specify one", "help")
         return nil
     end
-
     local blocks = {}
     local block = nil
     local rendered = ""
-    
+
     for index, item in pairs(data) do
         if type(item.value) == "table" then
             if item.value.type == DirectiveKind.BEGIN then
@@ -241,7 +249,8 @@ function render(filename, data, is_template)
         elseif type(item.value) == "table" then
             if item.value.type == DirectiveKind.BLOCK then
                 if blocks[item.value.block] == nil then
-                    warn("block `" .. item.value.block .. "` is not used in extension `" .. filename .. "`", template_filename, item.line)
+                    warn("block `" .. item.value.block .. "` is not used in extension `" .. filename .. "`",
+                        template_filename, item.line)
                 else
                     rendered = rendered .. blocks[item.value.block]
                 end
@@ -325,7 +334,7 @@ function parse_args(program, args)
     end
     command = args[1]
     if command == "single" then
-        local parsed = parse_single_command(program, {table.unpack(args, 2)})
+        local parsed = parse_single_command(program, { table.unpack(args, 2) })
         if parsed == nil then return nil end
         return {
             command = command,
@@ -347,12 +356,12 @@ end
 function main()
     local program = arg[0]
 
-    local args = parse_args(program, {table.unpack(arg, 1)})
+    local args = parse_args(program, { table.unpack(arg, 1) })
     if args == nil then
         fatal("failed to parse command line arguments")
         return 1
     end
-    
+
     print("Trellis")
     print("A simple and powerful templating engine\n")
 
@@ -373,7 +382,7 @@ function main()
         help(program)
         return 0
     end
-    
+
     return 0
 end
 
