@@ -262,6 +262,30 @@ end
 
 ---- Main CLI program
 
+function list_dir(path)
+    local files = {}
+    local command
+    path = "\"" .. tostring(path):gsub("\"", "\\\"") .. "\""
+
+    if package.config:sub(1,1) == '\\' then
+        -- Windows
+        command = 'dir "' .. path .. '" /b /a-d'
+    else
+        local script = "for f in " .. path .. "/*; do [ -f \\\"\\$f\\\" ] && printf '%s\\n' \\\"\\$f\\\"; done"
+        command = "sh -c \"" .. script .. "\""
+    end
+
+    local p = io.popen(command)
+    if not p then return nil end
+
+    for file in p:lines() do
+        table.insert(files, file)
+    end
+    p:close()
+
+    return files
+end
+
 function log(message, submessage)
     io.stderr:write("info: ")
     if submessage ~= nil then
@@ -355,7 +379,11 @@ end
 
 function main()
     local program = arg[0]
-
+    
+    for i, j in ipairs(list_dir(".")) do
+        print("a")
+        print(j)
+    end
     local args = parse_args(program, { table.unpack(arg, 1) })
     if args == nil then
         fatal("failed to parse command line arguments")
@@ -364,6 +392,7 @@ function main()
 
     print("Trellis")
     print("A simple and powerful templating engine\n")
+
 
     if args.command == "single" then
         local input = args.values.input
