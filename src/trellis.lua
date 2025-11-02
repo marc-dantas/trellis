@@ -357,11 +357,6 @@ end
 
 function main()
     local program = arg[0]
-    
-    for i, j in ipairs(list_dir(".")) do
-        print("a")
-        print(j)
-    end
     local args = parse_args(program, { table.unpack(arg, 1) })
     if args == nil then
         fatal("failed to parse command line arguments")
