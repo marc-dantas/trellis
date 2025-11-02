@@ -14,7 +14,17 @@ Trellis is written in [Lua programming language](https://lua.org/) and is shippe
 > This piece of software has no warranty, so use it at **YOUR OWN RISK**!
 
 ### Dependencies
-Trellis does not have any dependencies apart from the Lua interpreter or [LuaJIT](https://luajit.org/).
+Trellis depends only on:
+- Lua interpreter/[LuaJIT](https://luajit.org/).
+- [LuaFileSystem](https://luarocks.org/modules/hisham/luafilesystem) package.
+
+To install Lua interpreter, visit the [official Lua website](https://lua.org/).
+
+[Install LuaRocks](https://github.com/luarocks/luarocks/blob/main/docs/download.md) on your machine.
+Then and run this command to install LuaFileSystem:
+```console
+$ luarocks install luafilesystem
+```
 
 ### Usage
 To use trellis you need to execute the script at the `src` folder in this repository:

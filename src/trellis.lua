@@ -1,5 +1,7 @@
 #!/usr/bin/env lua
 
+local lfs = require("lfs")
+
 -- Partition kinds definition
 TEXT      = 0
 DIRECTIVE = 1
@@ -261,30 +263,6 @@ function render(filename, data, is_template)
 end
 
 ---- Main CLI program
-
-function list_dir(path)
-    local files = {}
-    local command
-    path = "\"" .. tostring(path):gsub("\"", "\\\"") .. "\""
-
-    if package.config:sub(1,1) == '\\' then
-        -- Windows
-        command = 'dir "' .. path .. '" /b /a-d'
-    else
-        local script = "for f in " .. path .. "/*; do [ -f \\\"\\$f\\\" ] && printf '%s\\n' \\\"\\$f\\\"; done"
-        command = "sh -c \"" .. script .. "\""
-    end
-
-    local p = io.popen(command)
-    if not p then return nil end
-
-    for file in p:lines() do
-        table.insert(files, file)
-    end
-    p:close()
-
-    return files
-end
 
 function log(message, submessage)
     io.stderr:write("info: ")
