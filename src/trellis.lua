@@ -310,15 +310,17 @@ function help(program)
     io.stderr:write("  available commands:\n")
     io.stderr:write("    help\n\tprint this help message and exit\n")
     io.stderr:write("\tusage: " .. program .. " help\n")
-    io.stderr:write("    single\n\trender a single extension file into a specified output\n")
-    io.stderr:write("\tusage: " .. program .. " single INPUT OUTPUT\n")
+    
+    io.stderr:write("    render\n\trender a single extension file into a specified output\n")
+    io.stderr:write("\tusage: " .. program .. " render INPUT OUTPUT\n")
+
     io.stderr:write("\n")
 end
 
-function parse_single_command(program, arguments)
+function parse_render_command(program, arguments)
     if #arguments < 2 then
         usage(program)
-        fatal("expected INPUT and OUTPUT as positional arguments for `single` command")
+        fatal("expected INPUT and OUTPUT as positional arguments for `render` command")
         return nil
     end
     return {
@@ -335,8 +337,8 @@ function parse_args(program, args)
         return nil
     end
     command = args[1]
-    if command == "single" then
-        local parsed = parse_single_command(program, { table.unpack(args, 2) })
+    if command == "render" then
+        local parsed = parse_render_command(program, { table.unpack(args, 2) })
         if parsed == nil then return nil end
         return {
             command = command,
@@ -367,7 +369,7 @@ function main()
     print("A simple and powerful templating engine\n")
 
 
-    if args.command == "single" then
+    if args.command == "render" then
         local input = args.values.input
         local output = args.values.output
 
