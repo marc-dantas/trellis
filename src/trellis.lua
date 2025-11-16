@@ -178,7 +178,7 @@ end
 
 ---- Rendering engine
 
-function render(filename, data, is_template)
+function render(filename, data, is_template, template_search)
     local template = {}
     local template_filename = nil
     for index, item in pairs(data) do
@@ -190,7 +190,7 @@ function render(filename, data, is_template)
                 return nil
             end
 
-            local template_name = item.value.template
+            local template_name = template_search .. "/" .. item.value.template
             template = load_trellis_file(template_name)
             if template == nil then
                 err("could not read template `" .. template_name .. "`", filename, item.line)
@@ -262,6 +262,47 @@ function render(filename, data, is_template)
     return rendered
 end
 
+---- File handling
+
+function is_directory(path_str)
+    local attr = lfs.attributes(path_str)
+    return attr and attr.mode == "directory"
+end
+
+
+-- remove a directory and all its contents recursively
+function deletedir(path)
+	for entry in lfs.dir(path) do
+		if entry ~= "." and entry ~= ".." then
+			local fullpath = path .. "/" .. entry
+			if is_directory(fullpath) then
+				deletedir(fullpath)
+			else
+				os.remove(fullpath)
+			end
+		end
+	end
+	lfs.rmdir(path)
+end
+
+function create_file_tree(path)
+	-- assume that path is a directory
+	-- please handle it yourself
+	tree = {}
+	for entry in lfs.dir(path) do
+		if entry ~= "." and entry ~= ".." then
+			local fullpath = path .. "/" .. entry
+			if is_directory(fullpath) then
+				inner = create_file_tree(fullpath)
+				table.insert(tree, inner)
+			else
+				table.insert(tree, entry)
+			end
+		end
+	end
+	return { name = path, tree = tree }
+end
+
 ---- Main CLI program
 
 function log(message, submessage)
@@ -301,6 +342,31 @@ function load_trellis_file(filename)
     local trellis = parse(filename, tokenize(partition(content)))
     if trellis == nil then return nil end
     return trellis
+end
+
+-- renders all files in a file tree recursively passed by `tree`
+-- and saves the rendered result inside the directory path passed in `into`
+function render_file_tree_into_dir(tree, into, template_search)
+	local n = 0
+	for _, item in pairs(tree.tree) do
+		if type(item) == "table" then -- directory
+			local new_tree = item.tree
+			local new_into = into .. "/" .. item.name
+			lfs.mkdir(into .. "/" .. item.name)
+			local ret = render_file_tree_into_dir(new_tree, new_into)
+			if ret == nil then return nil end
+			n = n + ret
+		elseif type(item) == "string" then -- file
+			local trellis = load_trellis_file(tree.name .. "/" .. item)
+			local rendered = render(item, trellis, false, template_search)
+			if rendered == nil then return nil end
+			local out = io.open(into .. "/" .. item, "w")
+	        out:write(rendered)
+	        out:close()
+	        n = n + 1
+		end
+	end
+	return n
 end
 
 -- Command Line arguments parsing
@@ -387,9 +453,26 @@ function main()
         if rendered == nil then return 1 end
         local out = io.open(output, "w")
         out:write(rendered)
-                log("rendered `" .. input .. "` successfully into `" .. output .. "`")
+        log("rendered `" .. input .. "` successfully into `" .. output .. "`")
 	elseif args.command == "build" then
-		log("TODO: build command")
+		-- assuming some variables here
+		local output_directory = "dist"
+		local input_directory = "src"
+		local template_directory = "templates"
+
+		local tree = create_file_tree(input_directory)
+
+		if is_directory(output_directory) then
+			deletedir(output_directory)
+		end
+		lfs.mkdir(output_directory)
+
+		local howmany = render_file_tree_into_dir(tree, output_directory, template_directory)
+		if howmany == nil then
+			fatal("could not build project `" .. lfs.currentdir() .. "`")
+			return 1
+		end
+        log("rendered " .. howmany .. " file(s) successfully into `" .. output_directory .. "`")
     elseif args.command == "help" then
         usage(program)
         help(program)
