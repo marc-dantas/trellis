@@ -314,6 +314,9 @@ function help(program)
     io.stderr:write("    render\n\trender a single extension file into a specified output\n")
     io.stderr:write("\tusage: " .. program .. " render INPUT OUTPUT\n")
 
+	io.stderr:write("    build\n\tbuilds the entire trellis project in the current directory\n")
+    io.stderr:write("\tusage: " .. program .. " build\n")
+
     io.stderr:write("\n")
 end
 
@@ -344,6 +347,11 @@ function parse_args(program, args)
             command = command,
             values = parsed
         }
+    elseif command == "build" then
+    	return {
+    		command = command,
+    		values = {}
+    	}
     elseif command == "help" then
         return {
             command = command,
@@ -368,7 +376,6 @@ function main()
     print("Trellis")
     print("A simple and powerful templating engine\n")
 
-
     if args.command == "render" then
         local input = args.values.input
         local output = args.values.output
@@ -380,7 +387,9 @@ function main()
         if rendered == nil then return 1 end
         local out = io.open(output, "w")
         out:write(rendered)
-        log("rendered `" .. input .. "` successfully into `" .. output .. "`")
+                log("rendered `" .. input .. "` successfully into `" .. output .. "`")
+	elseif args.command == "build" then
+		log("TODO: build command")
     elseif args.command == "help" then
         usage(program)
         help(program)
