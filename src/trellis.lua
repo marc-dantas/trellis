@@ -398,6 +398,31 @@ function parse_render_command(program, arguments)
     }
 end
 
+function parse_build_command(program, args)
+	flags = { t = nil, s = nil, d = nil }
+	flag = nil
+	for _, i in pairs(args) do
+		if i == "-t" then
+			flag = "t"
+		elseif i == "-s" then
+			flag = "s"
+		elseif i == "-d" then
+			flag = "d"
+		elseif flag ~= nil then
+			flags[flag] = i
+			flag = nil
+		else
+			fatal("unexpected argument `" .. i .. "`")
+			return nil
+		end
+	end
+	if flag ~= nil then
+		fatal("flag -" .. flag .. " expects an argument after it but got none")
+		return nil
+	end
+	return flags
+end
+
 function parse_args(program, args)
     if #args < 1 then
         usage(program)
@@ -414,9 +439,11 @@ function parse_args(program, args)
             values = parsed
         }
     elseif command == "build" then
+    	local parsed = parse_build_command(program, { table.unpack(args, 2) })
+        if parsed == nil then return nil end
     	return {
     		command = command,
-    		values = {}
+    		values = parsed
     	}
     elseif command == "help" then
         return {
@@ -453,12 +480,17 @@ function main()
         if rendered == nil then return 1 end
         local out = io.open(output, "w")
         out:write(rendered)
-        log("rendered `" .. input .. "` successfully into `" .. output .. "`")
+        log("rendered " .. input .. " successfully into " .. output)
 	elseif args.command == "build" then
-		-- assuming some variables here
-		local output_directory = "dist"
-		local input_directory = "src"
-		local template_directory = "templates"
+		local project_name = lfs.currentdir()
+
+		local template_directory = args.values.t or "templates"
+		local input_directory = args.values.s or "src"
+		local output_directory = args.values.d or "dist"
+		
+        log("building " .. project_name .. " from " .. input_directory .. " into " .. output_directory .. "")
+        log("searching for templates at " .. template_directory)
+        
 
 		local tree = create_file_tree(input_directory)
 
@@ -469,10 +501,11 @@ function main()
 
 		local howmany = render_file_tree_into_dir(tree, output_directory, template_directory)
 		if howmany == nil then
-			fatal("could not build project `" .. lfs.currentdir() .. "`")
+			fatal("could not build project " .. project_name .. "")
 			return 1
 		end
-        log("rendered " .. howmany .. " file(s) successfully into `" .. output_directory .. "`")
+        log("rendered " .. howmany .. " file(s) successfully into " .. output_directory)
+        log("built " .. project_name .. " successfully")
     elseif args.command == "help" then
         usage(program)
         help(program)
