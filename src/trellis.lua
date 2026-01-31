@@ -402,11 +402,11 @@ function parse_build_command(program, args)
 	flags = { t = nil, s = nil, d = nil }
 	flag = nil
 	for _, i in pairs(args) do
-		if i == "-t" then
+		if i == "-t" or i == "--templates" then
 			flag = "t"
-		elseif i == "-s" then
+		elseif i == "-s" or i == "--source" then
 			flag = "s"
-		elseif i == "-d" then
+		elseif i == "-d" or i == "--dest" then
 			flag = "d"
 		elseif flag ~= nil then
 			flags[flag] = i
